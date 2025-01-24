@@ -38,6 +38,7 @@ def automate_course_selection(username, password, slot_letter, course_code, log_
 
     # Set up Chrome options for headless mode
     chrome_options = Options()
+    chrome_options.binary_location = "/usr/bin/google-chrome"  # Path to Chrome binary
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
