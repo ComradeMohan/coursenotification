@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Course Selection Automation</title>
+</head>
+<body>
+    <div class="container">
+        <h2>Course Selection Automation</h2>
+        <form method="POST" action="/submit">
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+
+            <label for="slot">Select Slot:</label>
+            <select id="slot" name="slot" required>
+                <option value="A">Slot A</option>
+                <option value="B">Slot B</option>
+                <!-- Add more options as needed -->
+            </select>
+
+            <label for="course_code">Course Code:</label>
+            <input type="text" id="course_code" name="course_code" required>
+
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</body>
+</html>
