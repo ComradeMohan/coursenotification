@@ -2,5 +2,9 @@ services:
   - type: web
     name: course-automation
     env: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: |
+      apt-get update && apt-get install -y wget gnupg
+      wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+      apt install -y ./google-chrome-stable_current_amd64.deb
+      pip install -r requirements.txt
     startCommand: python app.py
