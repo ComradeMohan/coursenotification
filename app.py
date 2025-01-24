@@ -31,7 +31,7 @@ def automate_course_selection(username, password, slot_letter, course_code):
     chrome_options.add_argument("--no-sandbox")  # Bypass OS security model
     chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
 
-    # Initialize the WebDriver using WebDriver Manager
+    # Initialize the WebDriver using WebDriver Manager with options
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
     try:
