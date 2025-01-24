@@ -6,6 +6,7 @@ from selenium.webdriver.support.ui import Select
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import io
 
 app = Flask(__name__)
 
@@ -20,55 +21,63 @@ def submit():
     slot = request.form['slot']
     course_code = request.form['course_code']
 
-    result = automate_course_selection(username, password, slot, course_code)
+    # Run the Selenium automation and capture logs
+    log_output = io.StringIO()
+    result = automate_course_selection(username, password, slot, course_code, log_output)
+    logs = log_output.getvalue()
     
-    return render_template('result.html', result=result)
+    return render_template('result.html', result=result, logs=logs)
 
-def automate_course_selection(username, password, slot_letter, course_code):
+def automate_course_selection(username, password, slot_letter, course_code, log_output):
     # Set up Chrome options for headless mode
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
-    chrome_options.add_argument("--no-sandbox")  # Bypass OS security model
-    chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
 
     # Initialize the WebDriver using WebDriver Manager with options
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    log_output.write("Starting Selenium Automation...\n")
 
     try:
         driver.get("https://arms.sse.saveetha.com")
-        time.sleep(2)  # Wait for page to load
+        log_output.write("Navigated to login page.\n")
+        time.sleep(2)
 
         # Login process
         driver.find_element(By.ID, "txtusername").send_keys(username)
         driver.find_element(By.ID, "txtpassword").send_keys(password)
         driver.find_element(By.ID, "btnlogin").click()
-        time.sleep(2)  # Wait for login process to complete
+        log_output.write("Logged in successfully.\n")
+        time.sleep(2)
 
-        # Go to enrollment page
+        # Navigate to enrollment page
         driver.get("https://arms.sse.saveetha.com/StudentPortal/Enrollment.aspx")
-        time.sleep(2)  # Wait for enrollment page to load
+        log_output.write("Navigated to enrollment page.\n")
+        time.sleep(2)
 
         # Select slot
-        slot_number = ord(slot_letter.upper()) - 64  # Convert letter to number (A=1)
+        slot_number = ord(slot_letter.upper()) - 64
         slot_dropdown = Select(driver.find_element(By.ID, "cphbody_ddlslot"))
-        slot_dropdown.select_by_value(str(slot_number))  # Select by value
-
-        time.sleep(3)  # Wait for courses to load after selecting the slot
+        slot_dropdown.select_by_value(str(slot_number))
+        log_output.write(f"Selected slot {slot_letter}.\n")
+        time.sleep(3)
 
         # Check for the specified course in the table
         rows = driver.find_elements(By.CSS_SELECTOR, "#tbltbodyslota tr")
-        
         for row in rows:
             labels = row.find_elements(By.TAG_NAME, "label")
             if any(course_code in label.text for label in labels):
                 radio_button = row.find_element(By.CSS_SELECTOR, "input[type='radio']")
                 radio_button.click()
+                log_output.write(f"Course {course_code} selected successfully!\n")
                 return f"Course {course_code} selected successfully!"
         
+        log_output.write(f"Course {course_code} not found.\n")
         return f"Course {course_code} not found."
-    
     finally:
         driver.quit()
+        log_output.write("Selenium Automation Completed.\n")
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)  # Ensure it binds to 0.0.0.0 for Render
+    app.run(host='0.0.0.0', port=5000)
