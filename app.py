@@ -65,4 +65,4 @@ def automate_course_selection(username, password, slot_letter, course_code):
         driver.quit()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000) 
