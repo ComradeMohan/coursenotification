@@ -3,6 +3,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 
@@ -19,14 +20,19 @@ def submit():
     slot = request.form['slot']
     course_code = request.form['course_code']
 
-    # Call the Selenium automation function here
     result = automate_course_selection(username, password, slot, course_code)
     
     return render_template('result.html', result=result)
 
 def automate_course_selection(username, password, slot_letter, course_code):
+    # Set up Chrome options for headless mode
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--no-sandbox")  # Bypass OS security model
+    chrome_options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+
     # Initialize the WebDriver using WebDriver Manager
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
 
     try:
         driver.get("https://arms.sse.saveetha.com")
@@ -65,4 +71,4 @@ def automate_course_selection(username, password, slot_letter, course_code):
         driver.quit()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000) 
+    app.run(host='0.0.0.0', port=5000)  # Ensure it binds to 0.0.0.0 for Render
