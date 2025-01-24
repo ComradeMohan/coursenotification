@@ -1,12 +1,12 @@
+import os
 from flask import Flask, render_template, request
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
 import io
 import traceback
-from webdriver_manager.chrome import ChromeDriverManager
+import chromedriver_autoinstaller
 
 app = Flask(__name__)
 
@@ -33,6 +33,9 @@ def submit():
         return render_template('result.html', result=f"An error occurred: {str(e)}", logs=logs)
 
 def automate_course_selection(username, password, slot_letter, course_code, log_output):
+    # Ensure ChromeDriver is installed
+    chromedriver_autoinstaller.install()
+
     # Set up Chrome options for headless mode
     chrome_options = Options()
     chrome_options.add_argument("--headless")
@@ -41,7 +44,7 @@ def automate_course_selection(username, password, slot_letter, course_code, log_
     chrome_options.add_argument("--disable-dev-shm-usage")
 
     # Initialize the WebDriver
-    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    driver = webdriver.Chrome(options=chrome_options)
 
     try:
         log_output.write("Starting automation...\n")
