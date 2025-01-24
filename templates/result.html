@@ -3,41 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automation Result</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            padding: 20px;
-        }
-        .container {
-            max-width: 800px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        .logs {
-            background: #f9f9f9;
-            border: 1px solid #ddd;
-            padding: 10px;
-            margin-top: 20px;
-            overflow-y: auto;
-            max-height: 300px;
-            font-family: monospace;
-            white-space: pre-wrap;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Result</title>
 </head>
 <body>
     <div class="container">
         <h2>Automation Result</h2>
         <p>{{ result }}</p>
-        <div class="logs">
-            <h3>Logs:</h3>
-            <pre>{{ logs }}</pre>
-        </div>
+        <h3>Logs:</h3>
+        <pre>{{ logs }}</pre>
+        <a href="/">Go Back</a>
     </div>
 </body>
 </html>
