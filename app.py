@@ -151,10 +151,12 @@ def monitor_course(session_id, data):
 
         print(f"[SESSION START] {session_id} - Monitoring {course_code} every {check_interval}s")
 
+        # -------------------- LOGIN --------------------
         if not login(driver, username, password):
             active_sessions[session_id]['status'] = 'error'
             active_sessions[session_id]['message'] = 'Invalid credentials'
-            print(f"[SESSION ERROR] Invalid credentials for {username}")
+            active_sessions[session_id]['active'] = False  # stop the session immediately
+            print(f"[SESSION STOPPED] Invalid credentials for {username}")
             return
 
         active_sessions[session_id]['status'] = 'checking'
@@ -166,7 +168,7 @@ def monitor_course(session_id, data):
             active_sessions[session_id]['attempts'] = attempt
             active_sessions[session_id]['last_check'] = time.strftime("%H:%M:%S")
 
-            # End session after MAX_SESSION_DURATION
+            # -------------------- TIMEOUT --------------------
             if elapsed > MAX_SESSION_DURATION:
                 active_sessions[session_id]['active'] = False
                 active_sessions[session_id]['status'] = 'timeout'
@@ -177,19 +179,25 @@ def monitor_course(session_id, data):
             if select_slot(driver, slot):
                 result = check_for_course(driver, course_code)
 
+                # -------------------- COURSE FOUND --------------------
                 if result['status'] == 'found':
                     msg = f"Course found with {result['vacancies']} vacancies!"
                     print(f"[SUCCESS] {msg}")
                     active_sessions[session_id]['status'] = 'found'
                     active_sessions[session_id]['message'] = msg
+                    active_sessions[session_id]['active'] = False  # stop session
 
                     if email:
                         if not send_email_notification(course_code, email):
                             active_sessions[session_id]['message'] += " (Email failed)"
                             print("[WARN] Email sending failed")
                     break
+
+                # -------------------- COURSE FULL --------------------
                 elif result['status'] == 'full':
                     active_sessions[session_id]['message'] = 'Course found but no vacancies'
+
+                # -------------------- COURSE NOT FOUND --------------------
                 else:
                     active_sessions[session_id]['message'] = 'Course not found'
 
@@ -200,6 +208,7 @@ def monitor_course(session_id, data):
         traceback.print_exc()
         active_sessions[session_id]['status'] = 'error'
         active_sessions[session_id]['message'] = str(e)
+        active_sessions[session_id]['active'] = False  # stop session on error
     finally:
         driver.quit()
         print(f"[SESSION END] {session_id} closed")
@@ -250,5 +259,6 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
