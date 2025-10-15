@@ -1,7 +1,8 @@
 webdriver-manager==3.5.0
-Werkzeug==2.2.2
+Werkzeug
 chromedriver-autoinstaller==0.6.2
 Flask==2.3.0
 flask-cors==4.0.0
 selenium==4.15.0
 gunicorn==21.2.0
+
