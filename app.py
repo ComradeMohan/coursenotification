@@ -179,3 +179,78 @@ def monitor_course(session_id, data):
                 break
 
             if select_slot(driver, slot):
+                result = check_for_course(driver, course_code)
+
+                if result['status'] == 'found':
+                    msg = f"Course found with {result['vacancies']} vacancies!"
+                    print(f"[SUCCESS] {msg}")
+                    active_sessions[session_id]['status'] = 'found'
+                    active_sessions[session_id]['message'] = msg
+
+                    if email:
+                        if not send_email_notification(course_code, email):
+                            active_sessions[session_id]['message'] += " (Email failed)"
+                            print("[WARN] Email sending failed")
+                    break
+                elif result['status'] == 'full':
+                    active_sessions[session_id]['message'] = 'Course found but no vacancies'
+                else:
+                    active_sessions[session_id]['message'] = 'Course not found'
+
+            time.sleep(check_interval)
+
+    except Exception as e:
+        print(f"[SESSION ERROR] {e}")
+        traceback.print_exc()
+        active_sessions[session_id]['status'] = 'error'
+        active_sessions[session_id]['message'] = str(e)
+    finally:
+        driver.quit()
+        print(f"[SESSION END] {session_id} closed")
+
+# ---------------------- API ROUTES ----------------------
+@app.route('/api/start-checking', methods=['POST'])
+def start_checking():
+    data = request.json
+    session_id = f"{data['username']}_{int(time.time())}"
+
+    active_sessions[session_id] = {
+        'active': True,
+        'status': 'starting',
+        'message': 'Initializing...',
+        'attempts': 0,
+        'last_check': None
+    }
+
+    thread = threading.Thread(target=monitor_course, args=(session_id, data))
+    thread.daemon = True
+    thread.start()
+
+    print(f"[NEW SESSION] {session_id} started")
+    return jsonify({'session_id': session_id, 'status': 'started'})
+
+@app.route('/api/check-status/<session_id>', methods=['GET'])
+def check_status(session_id):
+    if session_id in active_sessions:
+        return jsonify(active_sessions[session_id])
+    return jsonify({'status': 'not_found'}), 404
+
+@app.route('/api/stop-checking/<session_id>', methods=['POST'])
+def stop_checking(session_id):
+    if session_id in active_sessions:
+        active_sessions[session_id]['active'] = False
+        print(f"[SESSION STOPPED] {session_id}")
+        return jsonify({'status': 'stopped'})
+    return jsonify({'status': 'not_found'}), 404
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'healthy'})
+
+@app.route('/', methods=['GET'])
+def home():
+    return jsonify({'message': 'Course Enrollment Checker API is running'})
+
+# ---------------------- RUN APP ----------------------
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)
