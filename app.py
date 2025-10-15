@@ -11,6 +11,8 @@ from email.mime.text import MIMEText
 import threading
 import os
 import traceback
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 app = Flask(__name__)
 CORS(app)
@@ -31,44 +33,39 @@ def setup_driver():
 
 # ---------------------- EMAIL NOTIFICATION ----------------------
 def send_email_notification(course_name, recipient_email):
-    sender_email = os.environ.get('SENDER_EMAIL', 'your-email@gmail.com')
-    sender_password = os.environ.get('SENDER_PASSWORD', 'your-app-password')
-
-    subject = f"🎉 Course {course_name} Found!"
-    body_html = f"""
-    <html>
-        <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
-            <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
-                <h2 style="color: #007bff;">Course Enrollment Alert</h2>
-                <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
-                <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
-                <br>
-                <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
-            </div>
-        </body>
-    </html>
-    """
-
-    msg = MIMEMultipart("alternative")
-    msg['From'] = sender_email
-    msg['To'] = recipient_email
-    msg['Subject'] = subject
-    msg.attach(MIMEText(body_html, 'html'))
-
     try:
-        print(f"[EMAIL] Sending notification to {recipient_email} for {course_name} ...")
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, recipient_email, msg.as_string())
-        server.quit()
-        print(f"[EMAIL] Successfully sent to {recipient_email}")
+        sg_api_key = os.environ.get("SENDGRID_API_KEY")
+        if not sg_api_key:
+            print("[EMAIL ERROR] SENDGRID_API_KEY not set in environment")
+            return False
+
+        message = Mail(
+            from_email=os.environ.get("SENDGRID_FROM", "no-reply@univault.live"),
+            to_emails=recipient_email,
+            subject=f"🎉 Course {course_name} Found!",
+            html_content=f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
+                    <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+                        <h2 style="color: #007bff;">Course Enrollment Alert</h2>
+                        <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
+                        <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
+                        <br>
+                        <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
+                    </div>
+                </body>
+            </html>
+            """
+        )
+
+        sg = SendGridAPIClient(sg_api_key)
+        response = sg.send(message)
+        print(f"[EMAIL] Sent via SendGrid to {recipient_email}, status {response.status_code}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send email: {e}")
+        print(f"[EMAIL ERROR] Failed to send via SendGrid: {e}")
         traceback.print_exc()
         return False
-
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -253,4 +250,5 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
