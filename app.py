@@ -5,9 +5,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
 import time
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 import threading
 import os
 import traceback
@@ -36,7 +33,7 @@ def send_email_notification(course_name, recipient_email):
     try:
         sg_api_key = os.environ.get("SENDGRID_API_KEY")
         if not sg_api_key:
-            print("[EMAIL ERROR] SENDGRID_API_KEY not set in environment")
+            print("[EMAIL ERROR] SENDGRID_API_KEY not set")
             return False
 
         message = Mail(
@@ -60,12 +57,13 @@ def send_email_notification(course_name, recipient_email):
 
         sg = SendGridAPIClient(sg_api_key)
         response = sg.send(message)
-        print(f"[EMAIL] Sent via SendGrid to {recipient_email}, status {response.status_code}")
+        print(f"[EMAIL] Sent to {recipient_email}, status {response.status_code}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send via SendGrid: {e}")
+        print(f"[EMAIL ERROR] {e}")
         traceback.print_exc()
         return False
+
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -76,12 +74,10 @@ def login(driver, username, password):
         driver.find_element(By.ID, "btnlogin").click()
         time.sleep(2)
 
-        # Check for login error message
         if "Invalid username or password" in driver.page_source:
             print(f"[LOGIN] Invalid credentials for {username}")
             return False
 
-        # Check if redirected to portal
         if "StudentPortal" in driver.current_url:
             print(f"[LOGIN] Successful for {username}")
             return True
@@ -114,11 +110,9 @@ def check_for_course(driver, course_code):
     try:
         time.sleep(2)
         rows = driver.find_elements(By.CSS_SELECTOR, "#tbltbodyslota tr")
-
         for row in rows:
             labels = row.find_elements(By.TAG_NAME, "label")
             badges = row.find_elements(By.CLASS_NAME, "badge")
-
             for label, badge in zip(labels, badges):
                 if course_code in label.text:
                     vacancies = int(badge.text)
@@ -129,7 +123,6 @@ def check_for_course(driver, course_code):
                         return {"status": "found", "vacancies": vacancies}
                     else:
                         return {"status": "full", "vacancies": 0}
-
         return {"status": "not_found"}
     except Exception as e:
         print(f"[COURSE CHECK ERROR] {e}")
@@ -140,7 +133,6 @@ def check_for_course(driver, course_code):
 def monitor_course(session_id, data):
     driver = setup_driver()
     start_time = time.time()
-
     try:
         username = data['username']
         password = data['password']
@@ -151,13 +143,11 @@ def monitor_course(session_id, data):
 
         print(f"[SESSION START] {session_id} - Monitoring {course_code} every {check_interval}s")
 
-        # -------------------- LOGIN --------------------
         if not login(driver, username, password):
             active_sessions[session_id]['status'] = 'error'
             active_sessions[session_id]['message'] = 'Invalid credentials'
-            active_sessions[session_id]['active'] = False  # stop the session immediately
+            active_sessions[session_id]['active'] = False
             print(f"[SESSION STOPPED] Invalid credentials for {username}")
-            stop_checking(session_id)
             return
 
         active_sessions[session_id]['status'] = 'checking'
@@ -165,40 +155,35 @@ def monitor_course(session_id, data):
 
         while active_sessions[session_id]['active']:
             attempt += 1
-            elapsed = time.time() - start_time
+            elapsed = int(time.time() - start_time)
             active_sessions[session_id]['attempts'] = attempt
             active_sessions[session_id]['last_check'] = time.strftime("%H:%M:%S")
+            active_sessions[session_id]['duration'] = elapsed
 
-            # -------------------- TIMEOUT --------------------
             if elapsed > MAX_SESSION_DURATION:
                 active_sessions[session_id]['active'] = False
                 active_sessions[session_id]['status'] = 'timeout'
                 active_sessions[session_id]['message'] = 'Session expired after 40 minutes'
-                print(f"[SESSION TIMEOUT] {session_id} expired after {elapsed:.2f} seconds")
+                print(f"[SESSION TIMEOUT] {session_id}")
                 break
 
             if select_slot(driver, slot):
                 result = check_for_course(driver, course_code)
 
-                # -------------------- COURSE FOUND --------------------
                 if result['status'] == 'found':
                     msg = f"Course found with {result['vacancies']} vacancies!"
+                    active_sessions[session_id].update({
+                        'status': 'found',
+                        'message': msg,
+                        'active': False
+                    })
                     print(f"[SUCCESS] {msg}")
-                    active_sessions[session_id]['status'] = 'found'
-                    active_sessions[session_id]['message'] = msg
-                    active_sessions[session_id]['active'] = False  # stop session
-                    stop_checking(session_id)
                     if email:
                         if not send_email_notification(course_code, email):
                             active_sessions[session_id]['message'] += " (Email failed)"
-                            print("[WARN] Email sending failed")
                     break
-
-                # -------------------- COURSE FULL --------------------
                 elif result['status'] == 'full':
                     active_sessions[session_id]['message'] = 'Course found but no vacancies'
-
-                # -------------------- COURSE NOT FOUND --------------------
                 else:
                     active_sessions[session_id]['message'] = 'Course not found'
 
@@ -207,9 +192,11 @@ def monitor_course(session_id, data):
     except Exception as e:
         print(f"[SESSION ERROR] {e}")
         traceback.print_exc()
-        active_sessions[session_id]['status'] = 'error'
-        active_sessions[session_id]['message'] = str(e)
-        active_sessions[session_id]['active'] = False  # stop session on error
+        active_sessions[session_id].update({
+            'status': 'error',
+            'message': str(e),
+            'active': False
+        })
     finally:
         driver.quit()
         print(f"[SESSION END] {session_id} closed")
@@ -219,19 +206,17 @@ def monitor_course(session_id, data):
 def start_checking():
     data = request.json
     session_id = f"{data['username']}_{int(time.time())}"
-
     active_sessions[session_id] = {
         'active': True,
         'status': 'starting',
         'message': 'Initializing...',
         'attempts': 0,
-        'last_check': None
+        'last_check': None,
+        'duration': 0
     }
-
     thread = threading.Thread(target=monitor_course, args=(session_id, data))
     thread.daemon = True
     thread.start()
-
     print(f"[NEW SESSION] {session_id} started")
     return jsonify({'session_id': session_id, 'status': 'started'})
 
@@ -245,6 +230,8 @@ def check_status(session_id):
 def stop_checking(session_id):
     if session_id in active_sessions:
         active_sessions[session_id]['active'] = False
+        active_sessions[session_id]['status'] = 'stopped'
+        active_sessions[session_id]['message'] = 'Stopped by user'
         print(f"[SESSION STOPPED] {session_id}")
         return jsonify({'status': 'stopped'})
     return jsonify({'status': 'not_found'}), 404
@@ -260,7 +247,3 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
-
-
-
