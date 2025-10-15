@@ -222,9 +222,27 @@ def start_checking():
 
 @app.route('/api/check-status/<session_id>', methods=['GET'])
 def check_status(session_id):
-    if session_id in active_sessions:
-        return jsonify(active_sessions[session_id])
-    return jsonify({'status': 'not_found'}), 404
+    if session_id not in active_sessions:
+        return jsonify({'status': 'not_found'}), 404
+
+    session = active_sessions[session_id]
+
+    # 🧩 If session has finished (found or error), stop monitoring automatically
+    if session.get('status') in ['found', 'error']:
+        # Ensure it's marked inactive
+        session['active'] = False
+        
+        # Save last response permanently (you can log it or persist it if needed)
+        active_sessions[session_id] = session
+
+        # Optional: clean up if you don’t want to keep old sessions in memory
+        # del active_sessions[session_id]
+
+        return jsonify(session)
+
+    # 🕓 Otherwise still active — just return current status
+    return jsonify(session)
+
 
 @app.route('/api/stop-checking/<session_id>', methods=['POST'])
 def stop_checking(session_id):
@@ -247,3 +265,4 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
