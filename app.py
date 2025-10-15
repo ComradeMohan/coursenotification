@@ -157,6 +157,7 @@ def monitor_course(session_id, data):
             active_sessions[session_id]['message'] = 'Invalid credentials'
             active_sessions[session_id]['active'] = False  # stop the session immediately
             print(f"[SESSION STOPPED] Invalid credentials for {username}")
+            stop_checking(session_id)
             return
 
         active_sessions[session_id]['status'] = 'checking'
@@ -186,7 +187,7 @@ def monitor_course(session_id, data):
                     active_sessions[session_id]['status'] = 'found'
                     active_sessions[session_id]['message'] = msg
                     active_sessions[session_id]['active'] = False  # stop session
-
+                    stop_checking(session_id)
                     if email:
                         if not send_email_notification(course_code, email):
                             active_sessions[session_id]['message'] += " (Email failed)"
@@ -259,6 +260,7 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
 
