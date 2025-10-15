@@ -74,24 +74,23 @@ def login(driver, username, password):
     try:
         driver.get("https://arms.sse.saveetha.com")
         time.sleep(2)
-
-        username_field = driver.find_element(By.ID, "txtusername")
-        password_field = driver.find_element(By.ID, "txtpassword")
-        login_button = driver.find_element(By.ID, "btnlogin")
-
-        username_field.send_keys(username)
-        password_field.send_keys(password)
-        login_button.click()
+        driver.find_element(By.ID, "txtusername").send_keys(username)
+        driver.find_element(By.ID, "txtpassword").send_keys(password)
+        driver.find_element(By.ID, "btnlogin").click()
         time.sleep(2)
 
-        # Check login success by verifying redirection
-        if "StudentPortal" in driver.current_url or "Home.aspx" in driver.current_url:
-            print(f"[LOGIN] Successful for {username}")
-            return True
-        else:
-            print(f"[LOGIN] Failed for {username}")
+        # Check for login error message
+        if "Invalid username or password" in driver.page_source:
+            print(f"[LOGIN] Invalid credentials for {username}")
             return False
 
+        # Check if redirected to portal
+        if "StudentPortal" in driver.current_url:
+            print(f"[LOGIN] Successful for {username}")
+            return True
+
+        print(f"[LOGIN] Unknown login state")
+        return False
     except Exception as e:
         print(f"[LOGIN ERROR] {e}")
         traceback.print_exc()
@@ -254,3 +253,4 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
