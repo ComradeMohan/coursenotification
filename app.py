@@ -131,8 +131,17 @@ def check_for_course(driver, course_code):
                     vacancies = int(badge.text)
                     print(f"[CHECK] Found {course_code} with {vacancies} vacancies")
                     if vacancies > 0:
+                        # Click the radio button
                         radio_button = row.find_element(By.CSS_SELECTOR, "input[type='radio']")
                         radio_button.click()
+                        
+                        # Send email immediately if recipient_email is provided
+                        if recipient_email:
+                            if send_email_notification(course_code, recipient_email):
+                                print(f"[EMAIL] Notification sent to {recipient_email}")
+                            else:
+                                print(f"[EMAIL ERROR] Failed to send email to {recipient_email}")
+                        
                         return {"status": "found", "vacancies": vacancies}
                     else:
                         return {"status": "full", "vacancies": 0}
@@ -278,5 +287,6 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
