@@ -5,13 +5,16 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import Select
 import time
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import threading
 import os
 import traceback
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 
-app = Flask(_name_)
+app = Flask(__name__)
 CORS(app)
 
 active_sessions = {}
@@ -33,7 +36,7 @@ def send_email_notification(course_name, recipient_email):
     try:
         sg_api_key = os.environ.get("SENDGRID_API_KEY")
         if not sg_api_key:
-            print("[EMAIL ERROR] SENDGRID_API_KEY not set")
+            print("[EMAIL ERROR] SENDGRID_API_KEY not set in environment")
             return False
 
         message = Mail(
@@ -57,13 +60,12 @@ def send_email_notification(course_name, recipient_email):
 
         sg = SendGridAPIClient(sg_api_key)
         response = sg.send(message)
-        print(f"[EMAIL] Sent to {recipient_email}, status {response.status_code}")
+        print(f"[EMAIL] Sent via SendGrid to {recipient_email}, status {response.status_code}")
         return True
     except Exception as e:
-        print(f"[EMAIL ERROR] {e}")
+        print(f"[EMAIL ERROR] Failed to send via SendGrid: {e}")
         traceback.print_exc()
         return False
-
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -74,10 +76,12 @@ def login(driver, username, password):
         driver.find_element(By.ID, "btnlogin").click()
         time.sleep(2)
 
+        # Check for login error message
         if "Invalid username or password" in driver.page_source:
             print(f"[LOGIN] Invalid credentials for {username}")
             return False
 
+        # Check if redirected to portal
         if "StudentPortal" in driver.current_url:
             print(f"[LOGIN] Successful for {username}")
             return True
@@ -110,9 +114,11 @@ def check_for_course(driver, course_code):
     try:
         time.sleep(2)
         rows = driver.find_elements(By.CSS_SELECTOR, "#tbltbodyslota tr")
+
         for row in rows:
             labels = row.find_elements(By.TAG_NAME, "label")
             badges = row.find_elements(By.CLASS_NAME, "badge")
+
             for label, badge in zip(labels, badges):
                 if course_code in label.text:
                     vacancies = int(badge.text)
@@ -123,6 +129,7 @@ def check_for_course(driver, course_code):
                         return {"status": "found", "vacancies": vacancies}
                     else:
                         return {"status": "full", "vacancies": 0}
+
         return {"status": "not_found"}
     except Exception as e:
         print(f"[COURSE CHECK ERROR] {e}")
@@ -133,6 +140,7 @@ def check_for_course(driver, course_code):
 def monitor_course(session_id, data):
     driver = setup_driver()
     start_time = time.time()
+
     try:
         username = data['username']
         password = data['password']
@@ -146,8 +154,7 @@ def monitor_course(session_id, data):
         if not login(driver, username, password):
             active_sessions[session_id]['status'] = 'error'
             active_sessions[session_id]['message'] = 'Invalid credentials'
-            active_sessions[session_id]['active'] = False
-            print(f"[SESSION STOPPED] Invalid credentials for {username}")
+            print(f"[SESSION ERROR] Invalid credentials for {username}")
             return
 
         active_sessions[session_id]['status'] = 'checking'
@@ -155,16 +162,16 @@ def monitor_course(session_id, data):
 
         while active_sessions[session_id]['active']:
             attempt += 1
-            elapsed = int(time.time() - start_time)
+            elapsed = time.time() - start_time
             active_sessions[session_id]['attempts'] = attempt
             active_sessions[session_id]['last_check'] = time.strftime("%H:%M:%S")
-            active_sessions[session_id]['duration'] = elapsed
 
+            # End session after MAX_SESSION_DURATION
             if elapsed > MAX_SESSION_DURATION:
                 active_sessions[session_id]['active'] = False
                 active_sessions[session_id]['status'] = 'timeout'
                 active_sessions[session_id]['message'] = 'Session expired after 40 minutes'
-                print(f"[SESSION TIMEOUT] {session_id}")
+                print(f"[SESSION TIMEOUT] {session_id} expired after {elapsed:.2f} seconds")
                 break
 
             if select_slot(driver, slot):
@@ -172,15 +179,14 @@ def monitor_course(session_id, data):
 
                 if result['status'] == 'found':
                     msg = f"Course found with {result['vacancies']} vacancies!"
-                    active_sessions[session_id].update({
-                        'status': 'found',
-                        'message': msg,
-                        'active': False
-                    })
                     print(f"[SUCCESS] {msg}")
+                    active_sessions[session_id]['status'] = 'found'
+                    active_sessions[session_id]['message'] = msg
+
                     if email:
                         if not send_email_notification(course_code, email):
                             active_sessions[session_id]['message'] += " (Email failed)"
+                            print("[WARN] Email sending failed")
                     break
                 elif result['status'] == 'full':
                     active_sessions[session_id]['message'] = 'Course found but no vacancies'
@@ -192,11 +198,8 @@ def monitor_course(session_id, data):
     except Exception as e:
         print(f"[SESSION ERROR] {e}")
         traceback.print_exc()
-        active_sessions[session_id].update({
-            'status': 'error',
-            'message': str(e),
-            'active': False
-        })
+        active_sessions[session_id]['status'] = 'error'
+        active_sessions[session_id]['message'] = str(e)
     finally:
         driver.quit()
         print(f"[SESSION END] {session_id} closed")
@@ -206,50 +209,32 @@ def monitor_course(session_id, data):
 def start_checking():
     data = request.json
     session_id = f"{data['username']}_{int(time.time())}"
+
     active_sessions[session_id] = {
         'active': True,
         'status': 'starting',
         'message': 'Initializing...',
         'attempts': 0,
-        'last_check': None,
-        'duration': 0
+        'last_check': None
     }
+
     thread = threading.Thread(target=monitor_course, args=(session_id, data))
     thread.daemon = True
     thread.start()
+
     print(f"[NEW SESSION] {session_id} started")
     return jsonify({'session_id': session_id, 'status': 'started'})
 
 @app.route('/api/check-status/<session_id>', methods=['GET'])
 def check_status(session_id):
-    if session_id not in active_sessions:
-        return jsonify({'status': 'not_found'}), 404
-
-    session = active_sessions[session_id]
-
-    # 🧩 If session has finished (found or error), stop monitoring automatically
-    if session.get('status') in ['found', 'error']:
-        # Ensure it's marked inactive
-        session['active'] = False
-        
-        # Save last response permanently (you can log it or persist it if needed)
-        active_sessions[session_id] = session
-
-        # Optional: clean up if you don’t want to keep old sessions in memory
-        # del active_sessions[session_id]
-
-        return jsonify(session)
-
-    # 🕓 Otherwise still active — just return current status
-    return jsonify(session)
-
+    if session_id in active_sessions:
+        return jsonify(active_sessions[session_id])
+    return jsonify({'status': 'not_found'}), 404
 
 @app.route('/api/stop-checking/<session_id>', methods=['POST'])
 def stop_checking(session_id):
     if session_id in active_sessions:
         active_sessions[session_id]['active'] = False
-        active_sessions[session_id]['status'] = 'stopped'
-        active_sessions[session_id]['message'] = 'Stopped by user'
         print(f"[SESSION STOPPED] {session_id}")
         return jsonify({'status': 'stopped'})
     return jsonify({'status': 'not_found'}), 404
@@ -263,5 +248,7 @@ def home():
     return jsonify({'message': 'Course Enrollment Checker API is running'})
 
 # ---------------------- RUN APP ----------------------
-if _name_ == '_main_':
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
+
