@@ -47,14 +47,32 @@ def send_email_notification(course_name, recipient_email):
 
         params = {
             "from": "Comrade Mohan <onboarding@resend.dev>",
-            "to": [test_email],
-            "subject": f"🎉 Course {course_name} Found!",
-            "html": f"""
-                <h2>Hello Nobitha!</h2>
-                <p>The course <b>{course_name}</b> now has available seats 🎉</p>
-                <p>Check your <a href='https://arms.sse.saveetha.com'>ARMS Portal</a> immediately.</p>
-                <p style='font-size:12px;color:gray'>— Univault Course Monitor</p>
-            """,
+            "to": [recipient_email],
+            "subject": f"🎉 Course {course_name} Available Now!",
+"html": f"""
+    <html>
+        <body style="font-family: Arial, sans-serif; background-color: #f4f6f8; padding: 20px;">
+            <div style="max-width: 600px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+                <h2 style="color: #007bff;">🎉 Good News!</h2>
+                <p style="font-size:16px;">The course <strong>{course_name}</strong> now has available seats!</p>
+                <p>Secure your spot immediately by visiting the following portals:</p>
+                <ul>
+                    <li><a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a></li>
+                    <li><a href="https://univault.live/" target="_blank">UniVault Dashboard</a></li>
+                    <li><a href="https://saveethahub.tech/" target="_blank">Saveetha Hub</a></li>
+                </ul>
+                <p style="font-size:16px;">Don’t miss out—act quickly!</p>
+                <br>
+                <p style="font-size:14px; color: gray;">
+                    — <strong>Comrade Mohan</strong><br>
+                    Univault Course Monitor<br>
+                    <em>Helping you secure your academic success</em>
+                </p>
+            </div>
+        </body>
+    </html>
+"""
+,
         }
 
         email = resend.Emails.send(params)
@@ -249,3 +267,4 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
