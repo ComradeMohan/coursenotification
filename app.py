@@ -57,9 +57,7 @@ def send_email_notification(course_name, recipient_email):
                 <p style="font-size:16px;">The course <strong>{course_name}</strong> now has available seats!</p>
                 <p>Secure your spot immediately by visiting the following portals:</p>
                 <ul>
-                    <li><a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a></li>
-                    <li><a href="https://univault.live/" target="_blank">UniVault Dashboard</a></li>
-                    <li><a href="https://saveethahub.tech/" target="_blank">Saveetha Hub</a></li>
+                    <li><a href="https://univault.live/#features" target="_blank">UniVault Dashboard</a></li>
                 </ul>
                 <p style="font-size:16px;">Don’t miss out—act quickly!</p>
                 <br>
@@ -267,5 +265,6 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
