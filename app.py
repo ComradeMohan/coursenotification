@@ -11,6 +11,7 @@ from email.mime.text import MIMEText
 import threading
 import os
 import traceback
+import resend
 
 app = Flask(__name__)
 CORS(app)
@@ -31,72 +32,41 @@ def setup_driver():
 
 # ---------------------- EMAIL NOTIFICATION (SMTP ONLY) ----------------------
 def send_email_notification(course_name, recipient_email):
-    """Send email using SMTP"""
+    """
+    Send email via Resend.
+    Currently always sends to k.nobitha666@gmail.com for testing.
+    """
     try:
-        smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
-        smtp_username = os.environ.get("SMTP_USERNAME")
-        smtp_password = os.environ.get("SMTP_PASSWORD")
-        from_email = os.environ.get("SMTP_FROM_EMAIL", smtp_username)
-        
-        if not smtp_username or not smtp_password:
-            print("[EMAIL ERROR] SMTP credentials not set in environment variables")
-            print("[EMAIL ERROR] Please set SMTP_USERNAME and SMTP_PASSWORD in Render")
+        resend_api_key = os.environ.get("RESEND_API_KEY")
+        if not resend_api_key:
+            print("[EMAIL ERROR] RESEND_API_KEY not found in environment variables")
             return False
 
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = f"🎉 Course {course_name} Found!"
-        msg['From'] = from_email
-        msg['To'] = recipient_email
+        resend.api_key = resend_api_key
 
-        # HTML content
-        html_content = f"""
-        <html>
-            <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
-                <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
-                    <h2 style="color: #007bff;">Course Enrollment Alert</h2>
-                    <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
-                    <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
-                    <br>
-                    <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
-                </div>
-            </body>
-        </html>
-        """
-        
-        # Plain text fallback
-        text_content = f"Course Enrollment Alert\n\nThe course {course_name} has available seats!\nPlease check your ARMS Portal immediately to confirm your enrollment.\n\n— Univault Course Monitor"
-        
-        part1 = MIMEText(text_content, 'plain')
-        part2 = MIMEText(html_content, 'html')
-        msg.attach(part1)
-        msg.attach(part2)
+        # Always send to your Resend test email for now
+        test_email = "k.nobitha666@gmail.com"
 
-        # Send email via SMTP
-        print(f"[EMAIL] Connecting to {smtp_server}:{smtp_port}")
-        with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
-            server.starttls()
-            print(f"[EMAIL] Logging in as {smtp_username}")
-            server.login(smtp_username, smtp_password)
-            server.send_message(msg)
-        
-        print(f"[EMAIL] Successfully sent to {recipient_email}")
+        params = {
+            "from": "Comrade Mohan <onboarding@resend.dev>",
+            "to": [test_email],
+            "subject": f"🎉 Course {course_name} Found!",
+            "html": f"""
+                <h2>Hello Nobitha!</h2>
+                <p>The course <b>{course_name}</b> now has available seats 🎉</p>
+                <p>Check your <a href='https://arms.sse.saveetha.com'>ARMS Portal</a> immediately.</p>
+                <p style='font-size:12px;color:gray'>— Univault Course Monitor</p>
+            """,
+        }
+
+        email = resend.Emails.send(params)
+        print(f"[EMAIL] Sent successfully to {test_email}: {email}")
         return True
-        
-    except smtplib.SMTPAuthenticationError as e:
-        print(f"[EMAIL ERROR] SMTP Authentication failed: {e}")
-        print("[EMAIL ERROR] Check your SMTP_USERNAME and SMTP_PASSWORD")
-        return False
-    except smtplib.SMTPException as e:
-        print(f"[EMAIL ERROR] SMTP error: {e}")
-        traceback.print_exc()
-        return False
-    except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send email: {e}")
-        traceback.print_exc()
-        return False
 
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send via Resend: {e}")
+        traceback.print_exc()
+        return False
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -280,3 +250,4 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
