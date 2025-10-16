@@ -11,8 +11,6 @@ from email.mime.text import MIMEText
 import threading
 import os
 import traceback
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
 
 app = Flask(__name__)
 CORS(app)
@@ -31,9 +29,9 @@ def setup_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
-# ---------------------- EMAIL NOTIFICATION (SMTP) ----------------------
-def send_email_smtp(course_name, recipient_email):
-    """Send email using SMTP (Gmail or other providers)"""
+# ---------------------- EMAIL NOTIFICATION (SMTP ONLY) ----------------------
+def send_email_notification(course_name, recipient_email):
+    """Send email using SMTP"""
     try:
         smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
         smtp_port = int(os.environ.get("SMTP_PORT", "587"))
@@ -42,7 +40,8 @@ def send_email_smtp(course_name, recipient_email):
         from_email = os.environ.get("SMTP_FROM_EMAIL", smtp_username)
         
         if not smtp_username or not smtp_password:
-            print("[EMAIL ERROR] SMTP credentials not set in environment")
+            print("[EMAIL ERROR] SMTP credentials not set in environment variables")
+            print("[EMAIL ERROR] Please set SMTP_USERNAME and SMTP_PASSWORD in Render")
             return False
 
         # Create message
@@ -74,74 +73,29 @@ def send_email_smtp(course_name, recipient_email):
         msg.attach(part1)
         msg.attach(part2)
 
-        # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
+        # Send email via SMTP
+        print(f"[EMAIL] Connecting to {smtp_server}:{smtp_port}")
+        with smtplib.SMTP(smtp_server, smtp_port, timeout=10) as server:
             server.starttls()
+            print(f"[EMAIL] Logging in as {smtp_username}")
             server.login(smtp_username, smtp_password)
             server.send_message(msg)
         
-        print(f"[EMAIL] Sent via SMTP to {recipient_email}")
+        print(f"[EMAIL] Successfully sent to {recipient_email}")
         return True
         
-    except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send via SMTP: {e}")
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[EMAIL ERROR] SMTP Authentication failed: {e}")
+        print("[EMAIL ERROR] Check your SMTP_USERNAME and SMTP_PASSWORD")
+        return False
+    except smtplib.SMTPException as e:
+        print(f"[EMAIL ERROR] SMTP error: {e}")
         traceback.print_exc()
         return False
-
-# ---------------------- EMAIL NOTIFICATION (SendGrid Fallback) ----------------------
-def send_email_sendgrid(course_name, recipient_email):
-    """Send email using SendGrid (fallback option)"""
-    try:
-        sg_api_key = os.environ.get("SENDGRID_API_KEY")
-        if not sg_api_key:
-            print("[EMAIL ERROR] SENDGRID_API_KEY not set in environment")
-            return False
-
-        message = Mail(
-            from_email=os.environ.get("SENDGRID_FROM", "no-reply@univault.live"),
-            to_emails=recipient_email,
-            subject=f"🎉 Course {course_name} Found!",
-            html_content=f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
-                    <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
-                        <h2 style="color: #007bff;">Course Enrollment Alert</h2>
-                        <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
-                        <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
-                        <br>
-                        <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
-                    </div>
-                </body>
-            </html>
-            """
-        )
-
-        sg = SendGridAPIClient(sg_api_key)
-        response = sg.send(message)
-        print(f"[EMAIL] Sent via SendGrid to {recipient_email}, status {response.status_code}")
-        return True
     except Exception as e:
-        print(f"[EMAIL ERROR] Failed to send via SendGrid: {e}")
+        print(f"[EMAIL ERROR] Failed to send email: {e}")
         traceback.print_exc()
         return False
-
-# ---------------------- EMAIL NOTIFICATION (Primary Function) ----------------------
-def send_email_notification(course_name, recipient_email):
-    """Try SMTP first, fallback to SendGrid if available"""
-    # Try SMTP first
-    if os.environ.get("SMTP_USERNAME"):
-        print("[EMAIL] Attempting SMTP...")
-        if send_email_smtp(course_name, recipient_email):
-            return True
-    
-    # Fallback to SendGrid
-    if os.environ.get("SENDGRID_API_KEY"):
-        print("[EMAIL] Attempting SendGrid...")
-        if send_email_sendgrid(course_name, recipient_email):
-            return True
-    
-    print("[EMAIL ERROR] No email service configured or all failed")
-    return False
 
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
@@ -153,12 +107,10 @@ def login(driver, username, password):
         driver.find_element(By.ID, "btnlogin").click()
         time.sleep(2)
 
-        # Check for login error message
         if "Invalid username or password" in driver.page_source:
             print(f"[LOGIN] Invalid credentials for {username}")
             return False
 
-        # Check if redirected to portal
         if "StudentPortal" in driver.current_url:
             print(f"[LOGIN] Successful for {username}")
             return True
@@ -243,7 +195,6 @@ def monitor_course(session_id, data):
             active_sessions[session_id]['attempts'] = attempt
             active_sessions[session_id]['last_check'] = time.strftime("%H:%M:%S")
 
-            # End session after MAX_SESSION_DURATION
             if elapsed > MAX_SESSION_DURATION:
                 active_sessions[session_id]['active'] = False
                 active_sessions[session_id]['status'] = 'timeout'
@@ -327,6 +278,5 @@ def health():
 def home():
     return jsonify({'message': 'Course Enrollment Checker API is running'})
 
-# ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
