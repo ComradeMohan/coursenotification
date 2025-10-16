@@ -119,7 +119,7 @@ def select_slot(driver, slot_letter):
         return False
 
 # ---------------------- COURSE CHECK ----------------------
-def check_for_course(driver, course_code):
+def check_for_course(driver, course_code, recipient_email="k.nobitha666@gmail.com"):
     try:
         time.sleep(2)
         rows = driver.find_elements(By.CSS_SELECTOR, "#tbltbodyslota tr")
@@ -131,11 +131,6 @@ def check_for_course(driver, course_code):
                     vacancies = int(badge.text)
                     print(f"[CHECK] Found {course_code} with {vacancies} vacancies")
                     if vacancies > 0:
-                        # Click the radio button
-                        radio_button = row.find_element(By.CSS_SELECTOR, "input[type='radio']")
-                        radio_button.click()
-                        
-                        # Send email immediately if recipient_email is provided
                         if recipient_email:
                             if send_email_notification(course_code, recipient_email):
                                 print(f"[EMAIL] Notification sent to {recipient_email}")
@@ -287,6 +282,7 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
 
