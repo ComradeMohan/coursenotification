@@ -29,8 +29,6 @@ def setup_driver():
     options.add_argument("--disable-blink-features=AutomationControlled")
     driver = webdriver.Chrome(options=options)
     return driver
-
-# ---------------------- EMAIL NOTIFICATION (SMTP ONLY) ----------------------
 def send_email_notification(course_name, recipient_email):
     """
     Send email via Resend.
@@ -67,6 +65,7 @@ def send_email_notification(course_name, recipient_email):
         print(f"[EMAIL ERROR] Failed to send via Resend: {e}")
         traceback.print_exc()
         return False
+
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -250,4 +249,3 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
