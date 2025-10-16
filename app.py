@@ -46,7 +46,7 @@ def send_email_notification(course_name, recipient_email):
         test_email = "k.nobitha666@gmail.com"
 
         params = {
-            "from": "Comrade Mohan <onboarding@resend.dev>",
+            "from": "Comrade Mohan <comrademohan@univault.live>",
             "to": [recipient_email],
             "subject": f"🎉 Course {course_name} Available Now!",
 "html": f"""
@@ -267,4 +267,5 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
