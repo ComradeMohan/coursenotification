@@ -8,8 +8,9 @@ import time
 import threading
 import os
 import traceback
-from sendgrid import SendGridAPIClient
-from sendgrid.helpers.mail import Mail
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 CORS(app)
@@ -31,34 +32,46 @@ def setup_driver():
 # ---------------------- EMAIL NOTIFICATION ----------------------
 def send_email_notification(course_name, recipient_email):
     try:
-        sg_api_key = os.environ.get("SENDGRID_API_KEY")
-        if not sg_api_key:
-            print("[EMAIL ERROR] SENDGRID_API_KEY not set")
+        smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(os.environ.get("SMTP_PORT", 587))
+        smtp_user = os.environ.get("SMTP_USER")
+        smtp_pass = os.environ.get("SMTP_PASS")
+        sender_email = os.environ.get("SMTP_FROM", smtp_user)
+
+        if not smtp_user or not smtp_pass:
+            print("[EMAIL ERROR] SMTP credentials not set")
             return False
 
-        message = Mail(
-            from_email=os.environ.get("SENDGRID_FROM", "no-reply@univault.live"),
-            to_emails=recipient_email,
-            subject=f"🎉 Course {course_name} Found!",
-            html_content=f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
-                    <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
-                        <h2 style="color: #007bff;">Course Enrollment Alert</h2>
-                        <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
-                        <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
-                        <br>
-                        <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
-                    </div>
-                </body>
-            </html>
-            """
-        )
+        subject = f"🎉 Course {course_name} Found!"
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
+                <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+                    <h2 style="color: #007bff;">Course Enrollment Alert</h2>
+                    <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
+                    <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
+                    <br>
+                    <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
+                </div>
+            </body>
+        </html>
+        """
 
-        sg = SendGridAPIClient(sg_api_key)
-        response = sg.send(message)
-        print(f"[EMAIL] Sent to {recipient_email}, status {response.status_code}")
+        msg = MIMEMultipart("alternative")
+        msg["From"] = sender_email
+        msg["To"] = recipient_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(html_content, "html"))
+
+        # Connect to SMTP server
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+
+        print(f"[EMAIL] Sent to {recipient_email}")
         return True
+
     except Exception as e:
         print(f"[EMAIL ERROR] {e}")
         traceback.print_exc()
@@ -265,4 +278,5 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
