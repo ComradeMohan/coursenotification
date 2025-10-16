@@ -31,8 +31,66 @@ def setup_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
-# ---------------------- EMAIL NOTIFICATION ----------------------
-def send_email_notification(course_name, recipient_email):
+# ---------------------- EMAIL NOTIFICATION (SMTP) ----------------------
+def send_email_smtp(course_name, recipient_email):
+    """Send email using SMTP (Gmail or other providers)"""
+    try:
+        smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+        smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+        smtp_username = os.environ.get("SMTP_USERNAME")
+        smtp_password = os.environ.get("SMTP_PASSWORD")
+        from_email = os.environ.get("SMTP_FROM_EMAIL", smtp_username)
+        
+        if not smtp_username or not smtp_password:
+            print("[EMAIL ERROR] SMTP credentials not set in environment")
+            return False
+
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"🎉 Course {course_name} Found!"
+        msg['From'] = from_email
+        msg['To'] = recipient_email
+
+        # HTML content
+        html_content = f"""
+        <html>
+            <body style="font-family: Arial, sans-serif; background-color: #f8f9fa; padding: 20px;">
+                <div style="max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+                    <h2 style="color: #007bff;">Course Enrollment Alert</h2>
+                    <p style="font-size: 16px;">The course <b>{course_name}</b> has available seats!</p>
+                    <p>Please check your <a href="https://arms.sse.saveetha.com" target="_blank">ARMS Portal</a> immediately to confirm your enrollment.</p>
+                    <br>
+                    <p style="font-size: 12px; color: gray;">— Univault Course Monitor</p>
+                </div>
+            </body>
+        </html>
+        """
+        
+        # Plain text fallback
+        text_content = f"Course Enrollment Alert\n\nThe course {course_name} has available seats!\nPlease check your ARMS Portal immediately to confirm your enrollment.\n\n— Univault Course Monitor"
+        
+        part1 = MIMEText(text_content, 'plain')
+        part2 = MIMEText(html_content, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            server.send_message(msg)
+        
+        print(f"[EMAIL] Sent via SMTP to {recipient_email}")
+        return True
+        
+    except Exception as e:
+        print(f"[EMAIL ERROR] Failed to send via SMTP: {e}")
+        traceback.print_exc()
+        return False
+
+# ---------------------- EMAIL NOTIFICATION (SendGrid Fallback) ----------------------
+def send_email_sendgrid(course_name, recipient_email):
+    """Send email using SendGrid (fallback option)"""
     try:
         sg_api_key = os.environ.get("SENDGRID_API_KEY")
         if not sg_api_key:
@@ -66,6 +124,25 @@ def send_email_notification(course_name, recipient_email):
         print(f"[EMAIL ERROR] Failed to send via SendGrid: {e}")
         traceback.print_exc()
         return False
+
+# ---------------------- EMAIL NOTIFICATION (Primary Function) ----------------------
+def send_email_notification(course_name, recipient_email):
+    """Try SMTP first, fallback to SendGrid if available"""
+    # Try SMTP first
+    if os.environ.get("SMTP_USERNAME"):
+        print("[EMAIL] Attempting SMTP...")
+        if send_email_smtp(course_name, recipient_email):
+            return True
+    
+    # Fallback to SendGrid
+    if os.environ.get("SENDGRID_API_KEY"):
+        print("[EMAIL] Attempting SendGrid...")
+        if send_email_sendgrid(course_name, recipient_email):
+            return True
+    
+    print("[EMAIL ERROR] No email service configured or all failed")
+    return False
+
 # ---------------------- PORTAL LOGIN ----------------------
 def login(driver, username, password):
     try:
@@ -182,9 +259,12 @@ def monitor_course(session_id, data):
                     print(f"[SUCCESS] {msg}")
                     active_sessions[session_id]['status'] = 'found'
                     active_sessions[session_id]['message'] = msg
-
+                    
                     if email:
-                        if not send_email_notification(course_code, email):
+                        print(f"[EMAIL] Sending notification to {email}")
+                        if send_email_notification(course_code, email):
+                            active_sessions[session_id]['message'] += " (Email sent)"
+                        else:
                             active_sessions[session_id]['message'] += " (Email failed)"
                             print("[WARN] Email sending failed")
                     break
@@ -250,5 +330,3 @@ def home():
 # ---------------------- RUN APP ----------------------
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
-
-
