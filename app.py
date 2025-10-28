@@ -41,7 +41,7 @@ def send_email_notification(course_name, recipient_email):
             return False
 
         resend.api_key = resend_api_key
-        sender_email = os.getenv("SENDER_EMAIL")
+        sender_email = os.getenv("RESEND_SENDER_EMAIL")
         print(f"[ENV] Sender email from environment: {sender_email}")
 
         # Always send to your Resend test email for now
@@ -267,6 +267,7 @@ def home():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
+
 
 
 
